@@ -95,7 +95,7 @@ class WidgetsExtension extends \Twig_Extension
         return sprintf('<div class="widget-%s">%s</div>', $path, $content);
     }
 
-    public function renderWidget($widgetName) {
+    public function renderWidget($widgetName, $fireEvents = false) {
 
         $alias = $this->app['alias'];
         $twig  = $this->app['twig'];
@@ -124,15 +124,34 @@ class WidgetsExtension extends \Twig_Extension
         $twig->environment->setLoader($widgetLoader);
         $this->app['page']->setData($widgetData['data']);
         $this->app['page']->setSegments($widgetData['segments']);
+
         $twiggedWidget = strtr($twig->render('index.html', array(
             'abspath' => dirname($_subtemplateDir).'/'
         ) ), array(
             './' => substr(dirname($_subtemplateDir), strlen($this->app['webPath'])).'/'
         ));
 
+        if($fireEvents){
+            $this->app['events']->dispatch('onWidgetLoaded', new \Herbie\Event([
+                'widgetData'        => $widgetData,
+                'widgetTemplateDir' => $_subtemplateDir,
+                'widgetPath'        => $widgetPath,
+                'pageLoader'        => &$pageLoader
+            ]));
+        }
+
         $twig->environment->setLoader($pageLoader);
         $this->app['page']->setData($pageData['data']);
         $this->app['page']->setSegments($pageData['segments']);
+
+        if($fireEvents) {
+            $this->app['events']->dispatch('onWidgetGenerated', new \Herbie\Event([
+                'widgetData'        => $widgetData,
+                'widgetTemplateDir' => $_subtemplateDir,
+                'widgetPath'        => $widgetPath,
+                'pageLoader'        => &$pageLoader
+            ]));
+        }
 
         return $twiggedWidget;
     }
