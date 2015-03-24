@@ -50,6 +50,11 @@ class WidgetsExtension extends \Twig_Extension
     protected $cachePath = 'cache';
 
     /**
+     * @var string
+     */
+    protected $uriPrefix = '_';
+
+    /**
      * @param Application $app
      */
     public function __construct($app)
@@ -86,16 +91,17 @@ class WidgetsExtension extends \Twig_Extension
      * @param bool $wrap
      * @return string
      */
-    public function widgetFunction($path = null, $wrap = null)
+    public function widgetFunction($path = null, $slide = 0, $wrap = null)
     {
-        $content = $this->renderWidget($path);
+        $content = $this->renderWidget($path, $slide);
         if (empty($wrap)) {
             return $content;
         }
         return sprintf('<div class="widget-%s">%s</div>', $path, $content);
     }
 
-    public function renderWidget($widgetName, $fireEvents = false) {
+    public function renderWidget($widgetName, $slide = 0, $fireEvents = false)
+    {
 
         $alias = $this->app['alias'];
         $twig  = $this->app['twig'];
@@ -103,22 +109,27 @@ class WidgetsExtension extends \Twig_Extension
 
         $_subtemplateDir = false;
         $_curDir = dirname($alias->get($path));
-        $_widgetDir = '_'.strtolower($widgetName);
+        $_widgetDir = $this->uriPrefix.strtolower($widgetName);
+        $slide = (int) $slide;
 
-        if(is_dir($_curDir.DS.$_widgetDir)) {
-            $_subtemplateDir = $_curDir.DS.$_widgetDir.DS.'.layout';
-            if(!is_dir($_subtemplateDir)){
-                $_subtemplateDir = false;
-            }
+        do {
+            $_pageDir = $_curDir;
+            $_subtemplateDir = $this->isWidget($_pageDir.DS.$_widgetDir);
+            $_curDir = substr($_curDir, 0, strrpos($_curDir, DS));
+            $slide--;
         }
-        if(!$_subtemplateDir) return null;
+        while(!$_subtemplateDir && $slide > 0);
+
+        if(!$_subtemplateDir) {
+            return null;
+        }
 
         $pageLoader = $twig->environment->getLoader();
         $pageData = $this->app['page']->toArray();
 
         $widgetLoader = new Twig_Loader_Filesystem($_subtemplateDir);
         $widgetPage = new \Herbie\Loader\PageLoader($alias);
-        $widgetPath = dirname($path).DS.$_widgetDir.DS.'index.md';
+        $widgetPath = $_pageDir.DS.$_widgetDir.DS.'index.md';
         $widgetData = $widgetPage->load($widgetPath);
 
         $twig->environment->setLoader($widgetLoader);
@@ -154,6 +165,42 @@ class WidgetsExtension extends \Twig_Extension
         }
 
         return $twiggedWidget;
+    }
+
+    public function getAvailableWidgets($path=null)
+    {
+        $ret = [];
+        $alias = $this->app['alias'];
+
+        $_curPath  = $path ? $path : $this->app['menu']->getItem($this->app['route'])->getPath();
+        $_curDir = dirname($alias->get($_curPath));
+
+        foreach(new \DirectoryIterator($_curDir) as $fileinfo){
+            $_fileName = $fileinfo->getFileName();
+            $_pathName = $fileinfo->getPathName();
+            if(
+                substr($_fileName, 0, strlen($this->uriPrefix))==$this->uriPrefix
+                && $this->isWidget($_pathName)
+            ){
+                $ret['available'][] = [
+                    'name' => substr($_fileName, strlen($this->uriPrefix)),
+                    'icon' => 'widget',
+                    'type' => $_fileName,
+                    'uri'  => $_fileName
+                ];
+            }
+        }
+
+        return $ret;
+    }
+
+    protected function isWidget($path)
+    {
+        $_subtemplateDir = $path.DS.'.layout';
+        if(!is_dir($_subtemplateDir)){
+            return false;
+        }
+        return $_subtemplateDir;
     }
 
 }
