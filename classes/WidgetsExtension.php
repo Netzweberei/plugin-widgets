@@ -21,6 +21,8 @@ use Twig_Environment;
 use Twig_Extension_Debug;
 use Twig_Loader_Chain;
 use Twig_Loader_Filesystem;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Filesystem\Exception\IOExceptionInterface;
 
 class WidgetsExtension extends \Twig_Extension
 {
@@ -172,8 +174,8 @@ class WidgetsExtension extends \Twig_Extension
         $ret = [];
         $alias = $this->app['alias'];
 
-        $_curPath  = $path ? $path : $this->app['menu']->getItem($this->app['route'])->getPath();
-        $_curDir = dirname($alias->get($_curPath));
+        $_curPath  = $path ? $path : dirname($this->app['menu']->getItem($this->app['route'])->getPath());
+        $_curDir = $alias->get($_curPath);
 
         foreach(new \DirectoryIterator($_curDir) as $fileinfo){
             $_fileName = $fileinfo->getFileName();
@@ -194,6 +196,36 @@ class WidgetsExtension extends \Twig_Extension
         return $ret;
     }
 
+    public function doCopyWidget($widget = false, $from = null, $to = null){
+
+        $alias  = $this->app['alias'];
+
+        $_widget = $this->uriPrefix.$widget;
+        $_from   = $alias->get($from).DS.$_widget;
+        $_to     = ($to ? $to : dirname($this->pagePath)).DS.$_widget;
+
+        if(!empty($_from) && $this->isWidget($_from)!== false) {
+            $fs = new Filesystem();
+            $ctr = 1;
+            $trailer = '';
+
+            // Test if target doesn't exist
+            while($fs->exists($_to.$trailer)){
+                $trailer = $ctr;
+                $ctr++;
+            }
+            $_to = $_to.$trailer;
+
+            // Copy all files from widget-blueprint
+            $fs->mirror($_from, $_to);
+
+            // Report to ST
+            return $fs->exists($_to) ? substr(basename($_to),strlen($this->uriPrefix)) : false;
+        }
+
+        return false;
+    }
+
     protected function isWidget($path)
     {
         $_subtemplateDir = $path.DS.'.layout';
@@ -202,5 +234,4 @@ class WidgetsExtension extends \Twig_Extension
         }
         return $_subtemplateDir;
     }
-
 }
