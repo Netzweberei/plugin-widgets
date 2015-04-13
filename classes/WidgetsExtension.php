@@ -21,8 +21,6 @@ use Twig_Environment;
 use Twig_Extension_Debug;
 use Twig_Loader_Chain;
 use Twig_Loader_Filesystem;
-use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Component\Filesystem\Exception\IOExceptionInterface;
 
 class WidgetsExtension extends \Twig_Extension
 {
@@ -110,6 +108,7 @@ class WidgetsExtension extends \Twig_Extension
         $path  = $this->app['menu']->getItem($this->app['route'])->getPath();
 
         $_subtemplateDir = false;
+        $_subtemplatePaths = [];
         $_curDir = dirname($alias->get($path));
         $_widgetDir = $this->uriPrefix.strtolower($widgetName);
         $slide = (int) $slide;
@@ -126,10 +125,17 @@ class WidgetsExtension extends \Twig_Extension
             return null;
         }
 
+        // @Todo: Do we really need this?
+        //$_overrideSubtemplatePath = $alias->get('@site/widgets/'.$_widgetDir.'/.layout');
+        //if(file_exists($_overrideSubtemplatePath)){
+        //    $_subtemplatePaths[] = $_overrideSubtemplatePath;
+        //}
+        $_subtemplatePaths[] = $_subtemplateDir;
+
         $pageLoader = $twig->environment->getLoader();
         $pageData = $this->app['page']->toArray();
 
-        $widgetLoader = new Twig_Loader_Filesystem($_subtemplateDir);
+        $widgetLoader = new Twig_Loader_Filesystem($_subtemplatePaths);
         $widgetPage = new \Herbie\Loader\PageLoader($alias);
         $widgetPath = $_pageDir.DS.$_widgetDir.DS.'index.md';
         $widgetData = $widgetPage->load($widgetPath);
@@ -201,26 +207,11 @@ class WidgetsExtension extends \Twig_Extension
         $alias  = $this->app['alias'];
 
         $_widget = $this->uriPrefix.$widget;
-        $_from   = $alias->get($from).DS.$_widget;
-        $_to     = ($to ? $to : dirname($this->pagePath)).DS.$_widget;
+        $_from   = $alias->get($from);
 
-        if(!empty($_from) && $this->isWidget($_from)!== false) {
-            $fs = new Filesystem();
-            $ctr = 1;
-            $trailer = '';
-
-            // Test if target doesn't exist
-            while($fs->exists($_to.$trailer)){
-                $trailer = $ctr;
-                $ctr++;
-            }
-            $_to = $_to.$trailer;
-
-            // Copy all files from widget-blueprint
-            $fs->mirror($_from, $_to);
-
-            // Report to ST
-            return $fs->exists($_to) ? substr(basename($_to),strlen($this->uriPrefix)) : false;
+        if(!empty($_from) && $this->isWidget($_from.DS.$_widget)!== false) {
+            // do something...
+            return true;
         }
 
         return false;
