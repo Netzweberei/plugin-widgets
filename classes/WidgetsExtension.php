@@ -125,21 +125,21 @@ class WidgetsExtension extends \Twig_Extension
             return null;
         }
 
+        $widgetPage = new \Herbie\Loader\PageLoader($alias);
+        $widgetPath = $_pageDir.DS.$_widgetDir.DS.'index.md';
+        $widgetData = $widgetPage->load($widgetPath);
+
         // @Todo: Do we really need this?
-        //$_overrideSubtemplatePath = $alias->get('@site/widgets/'.$_widgetDir.'/.layout');
-        //if(file_exists($_overrideSubtemplatePath)){
-        //    $_subtemplatePaths[] = $_overrideSubtemplatePath;
-        //}
+        $_overrideSubtemplatePath = $alias->get('@site/widgets/'.$this->uriPrefix.strtolower($widgetData['data']['title']).'/.layout');
+        if(file_exists($_overrideSubtemplatePath)){
+            $_subtemplatePaths[] = $_overrideSubtemplatePath;
+        }
         $_subtemplatePaths[] = $_subtemplateDir;
 
         $pageLoader = $twig->environment->getLoader();
         $pageData = $this->app['page']->toArray();
 
         $widgetLoader = new Twig_Loader_Filesystem($_subtemplatePaths);
-        $widgetPage = new \Herbie\Loader\PageLoader($alias);
-        $widgetPath = $_pageDir.DS.$_widgetDir.DS.'index.md';
-        $widgetData = $widgetPage->load($widgetPath);
-
         $twig->environment->setLoader($widgetLoader);
         $this->app['page']->setData($widgetData['data']);
         $this->app['page']->setSegments($widgetData['segments']);
