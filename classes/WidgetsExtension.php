@@ -21,12 +21,14 @@ use Twig_Environment;
 use Twig_Extension_Debug;
 use Twig_Loader_Chain;
 use Twig_Loader_Filesystem;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Filesystem\Exception\IOExceptionInterface;
 
 class WidgetsExtension extends \Twig_Extension
 {
     /**
-    * @var Application
-    */
+     * @var Application
+     */
     protected $app;
 
     /**
@@ -125,8 +127,16 @@ class WidgetsExtension extends \Twig_Extension
             return null;
         }
 
+        $pageLoader = $twig->environment->getLoader();
+        $pageData = $this->app['page']->toArray();
+
         $widgetPage = new \Herbie\Loader\PageLoader($alias);
+        $parentData = $widgetPage->load($path);
         $widgetPath = $_pageDir.DS.$_widgetDir.DS.'index.md';
+        if(isset($parentData['data']['language']) && $parentData['data']['language']!='default') {
+            $translation = $_pageDir.DS.$_widgetDir.DS.'index.'.$parentData['data']['language'].'.md';
+            $widgetPath = file_exists($translation) ? $translation : $widgetPath;
+        }
         $widgetData = $widgetPage->load($widgetPath);
 
         // @Todo: Do we really need this?
@@ -136,9 +146,6 @@ class WidgetsExtension extends \Twig_Extension
         }
         $_subtemplatePaths[] = $_subtemplateDir;
 
-        $pageLoader = $twig->environment->getLoader();
-        $pageData = $this->app['page']->toArray();
-
         $widgetLoader = new Twig_Loader_Filesystem($_subtemplatePaths);
         $twig->environment->setLoader($widgetLoader);
         $this->app['page']->setData($widgetData['data']);
@@ -147,7 +154,7 @@ class WidgetsExtension extends \Twig_Extension
         $twiggedWidget = strtr($twig->render('index.html', array(
             'abspath' => dirname($_subtemplateDir).'/'
         ) ), array(
-            './' => substr(dirname($_subtemplateDir), strlen($this->app['webPath'])).'/'
+            './' => substr(dirname($_subtemplateDir), strlen($this->app['sitePath'])).'/'
         ));
 
         if($fireEvents){
@@ -207,11 +214,26 @@ class WidgetsExtension extends \Twig_Extension
         $alias  = $this->app['alias'];
 
         $_widget = $this->uriPrefix.$widget;
-        $_from   = $alias->get($from);
+        $_from   = $alias->get($from).DS.$_widget;
+        $_to     = ($to ? $to : dirname($this->pagePath)).DS.$_widget;
 
-        if(!empty($_from) && $this->isWidget($_from.DS.$_widget)!== false) {
-            // do something...
-            return true;
+        if(!empty($_from) && $this->isWidget($_from)!== false) {
+            $fs = new Filesystem();
+            $ctr = 1;
+            $trailer = '';
+
+            // Test if target doesn't exist
+            while($fs->exists($_to.$trailer)){
+                $trailer = $ctr;
+                $ctr++;
+            }
+            $_to = $_to.$trailer;
+
+            // Copy all files from widget-blueprint
+            $fs->mirror($_from, $_to);
+
+            // Report to ST
+            return $fs->exists($_to) ? substr(basename($_to),strlen($this->uriPrefix)) : false;
         }
 
         return false;
